@@ -12,15 +12,23 @@ fn main() {
     print!("Element B: ");
     b.print();
 
-    let e = a.sub(&b);
+    let c = a + b;
+    print!("A + B = ");
+    c.print();
+
+    let d = a - b;
     print!("A - B = ");
+    d.print();
+
+    let e = a * b;
+    print!("A * B = ");
     e.print();
 
-    let f = a.div(&b);
+    let f = a / b;
     print!("A / B = ");
     f.print();
 
-    let verify = f.mul(&b);
+    let verify = (a / b) * b;
     print!("(A / B) * B = ");
     verify.print();
 }
