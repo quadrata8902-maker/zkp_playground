@@ -1,6 +1,5 @@
 //in this document, we constructed a certain type of elements: the structure of finite field,
-//and the operation on it
-
+//and the operations on it
 use std::ops::{Add, Sub, Mul, Div};
 
 #[derive(Clone, Copy, PartialEq)]

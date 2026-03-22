@@ -76,4 +76,19 @@ impl Curve {
             }
         }
     }
+    //scalar multiplication, to calculate kP faster to O(logk)
+    pub fn scalar_mul(&self, k: u64, point: ECPoint) -> ECPoint {
+        let mut result = ECPoint::Infinity; 
+        let mut addend = point;             
+        let mut multiplier = k;            
+
+        while multiplier > 0 {
+            if multiplier % 2 == 1 {
+                result = self.add(result, addend);
+            }
+            addend = self.add(addend, addend); 
+            multiplier /= 2;
+        }
+        result
+    }
 }
