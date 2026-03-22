@@ -1,9 +1,12 @@
+//in this document, we constructed a certain type of elements: the structure of finite field,
+//and the operation on it
+
 use std::ops::{Add, Sub, Mul, Div};
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 pub struct FieldElement {
-    value: u64,
-    prime: u64,
+    pub value: u64,
+    pub prime: u64,
 }
 
 impl FieldElement{

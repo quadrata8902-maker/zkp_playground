@@ -1,34 +1,39 @@
 mod field;
+mod curve;
 
 use field::FieldElement;
+use curve::{Curve, ECPoint};
 
 fn main() {
     let p = 17;
-    let a = FieldElement::new(10, p);
-    let b = FieldElement::new(15, p);
 
-    print!("Element A: ");
-    a.print();
-    print!("Element B: ");
-    b.print();
+    //setup a toy EC: y^2 = x^3 + 7 (mod 17)
+    let a = FieldElement::new(0, p);
+    let b = FieldElement::new(7, p);
+    let my_curve = Curve { a, b };
 
-    let c = a + b;
-    print!("A + B = ");
-    c.print();
+    println!("=== EC test: y^2 = x^3 + 7 (mod 17) ===");
 
-    let d = a - b;
-    print!("A - B = ");
-    d.print();
+    //test point:(1,5) should lies on the EC
+    let x1 = FieldElement::new(1, p);
+    let y1 = FieldElement::new(5, p);
+    let p1 = ECPoint::Point { x: x1, y: y1 };
 
-    let e = a * b;
-    print!("A * B = ");
-    e.print();
+    print!("test point P1 ");
+    p1.print();
+    println!("Is P1 ont the EC? {}", my_curve.contains(p1));
+    println!("---------------------------------");
 
-    let f = a / b;
-    print!("A / B = ");
-    f.print();
+    //test the doubling:P1+P1
+    let p2 = my_curve.add(p1, p1);
+    print!("P1 + P1 = P2 ");
+    p2.print();
+    println!("Is P2 on the EC? {}", my_curve.contains(p2));
+    println!("---------------------------------");
 
-    let verify = (a / b) * b;
-    print!("(A / B) * B = ");
-    verify.print();
+    //test the regular addition
+    let p3 = my_curve.add(p1, p2);
+    print!("P1 + P2 = P3 ");
+    p3.print();
+    println!("Is P3 on the EC? {}", my_curve.contains(p3));
 }
