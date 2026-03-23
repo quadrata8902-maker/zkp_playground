@@ -2,7 +2,7 @@
 //and the operations on it
 use std::ops::{Add, Sub, Mul, Div};
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Debug)]
 pub struct FieldElement {
     pub value: u64,
     pub prime: u64,

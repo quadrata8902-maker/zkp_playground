@@ -26,6 +26,7 @@ impl Polynomial {
         self.coeffs.len() - 1
     }
 
+    //to trim the vector if the last coefficient is 0
     pub fn trim(&mut self) {
         while self.coeffs.len() > 1 && self.coeffs.last().unwrap().value == 0 {
             self.coeffs.pop();
@@ -48,6 +49,43 @@ impl Polynomial {
         }
         
         result
+    }
+
+    //polynomial division, which gives quotients and reminders (for polynomial is an Euclidean Domain)
+    pub fn div_rem(&self, divisor: &Polynomial) -> (Polynomial, Polynomial) {
+        //make sure that the divisor cannot be 0
+        if divisor.coeffs.is_empty() || (divisor.coeffs.len() == 1 && divisor.coeffs[0].value == 0) {
+            panic!("!Cannot divide by zero polynomial");
+        }
+
+        let prime = self.coeffs[0].prime;
+        let mut quotient_coeffs = vec![FieldElement::new(0, prime); self.coeffs.len()];
+        //initialize the remainder as dividend itself
+        let mut remainder = self.clone();
+
+        //the loop is basiclly long division
+        while remainder.degree() >= divisor.degree() && !remainder.coeffs.is_empty() {
+            let deg_diff = remainder.degree() - divisor.degree();
+            let lead_rem = remainder.coeffs.last().unwrap();
+            let lead_div = divisor.coeffs.last().unwrap();
+            
+            let lead_quotient = *lead_rem / *lead_div; 
+
+            quotient_coeffs[deg_diff] = lead_quotient;
+
+            let mut term_coeffs = vec![FieldElement::new(0, prime); deg_diff + 1];
+            term_coeffs[deg_diff] = lead_quotient;
+            let term_poly = Polynomial::new(term_coeffs);
+            
+            let subtract_poly = term_poly * divisor.clone();
+            remainder = remainder - subtract_poly;
+        }
+
+        let mut quotient = Polynomial::new(quotient_coeffs);
+        quotient.trim();
+        remainder.trim();
+
+        (quotient, remainder)
     }
 
     pub fn print(&self) {
@@ -89,7 +127,7 @@ impl Add for Polynomial {
         
         let prime = self.coeffs[0].prime;
 
-        //term by term addition
+        //term by term addition, similar in subtraction
         for i in 0..max_len {            
             let a = if i < self.coeffs.len() { self.coeffs[i] } else { FieldElement::new(0, prime) };
             let b = if i < other.coeffs.len() { other.coeffs[i] } else { FieldElement::new(0, prime) };
