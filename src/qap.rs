@@ -1,6 +1,7 @@
 //in this section, we will construct the structure of QAP
 use crate::field::FieldElement;
 use crate::poly::Polynomial;
+use crate::r1cs::R1CS;
 
 //implement the lagrange interpolation
 pub fn lagrange_interpolate(x_coords: &[FieldElement], y_coords: &[FieldElement]) -> Polynomial {
@@ -29,7 +30,7 @@ pub fn lagrange_interpolate(x_coords: &[FieldElement], y_coords: &[FieldElement]
         // inner loop, to multiply all other (x - x_j)
         for j in 0..x_coords.len() {
             if i == j { 
-                continue; // cannot subtract itself, otherwise the denominator will be 0!
+                continue; // cannot subtract itself, otherwise the denominator will be 0
             }
 
             // 1. handle the numerator: multiply the polynomial (x - x_j)
@@ -57,4 +58,51 @@ pub fn lagrange_interpolate(x_coords: &[FieldElement], y_coords: &[FieldElement]
 
     result.trim(); // ensure the highest term has no invalid 0
     result
+}
+#[derive(Clone, Debug)] 
+pub struct QAP {
+    pub a_polys: Vec<Polynomial>,
+    pub b_polys: Vec<Polynomial>,
+    pub c_polys: Vec<Polynomial>,
+}
+
+impl QAP {
+    // convert the R1CS matrix to a collection of QAP polynomials
+    pub fn from_r1cs(r1cs: &R1CS) -> Self {
+        let num_equations = r1cs.a.len(); // number of gates (Rows)
+        let num_vars = r1cs.a[0].len();   // number of variables (Columns)
+        let prime = r1cs.a[0][0].prime;
+
+        // 1. prepare x coordinates: the gate number 1, 2, 3...
+        // mathematically, we agree that the x coordinate of Gate 1 is 1, Gate 2 is 2... and so on
+        let mut x_coords = Vec::with_capacity(num_equations);
+        for i in 1..=num_equations {
+            x_coords.push(FieldElement::new(i as u64, prime));
+        }
+
+        let mut a_polys = Vec::with_capacity(num_vars);
+        let mut b_polys = Vec::with_capacity(num_vars);
+        let mut c_polys = Vec::with_capacity(num_vars);
+
+        // 2. for each variable (Column), collect its values in all gates (y coordinates), then perform interpolation!
+        for var_idx in 0..num_vars {
+            let mut a_y_coords = Vec::with_capacity(num_equations);
+            let mut b_y_coords = Vec::with_capacity(num_equations);
+            let mut c_y_coords = Vec::with_capacity(num_equations);
+
+            // for each gate (Row), collect its values
+            for gate_idx in 0..num_equations {
+                a_y_coords.push(r1cs.a[gate_idx][var_idx]);
+                b_y_coords.push(r1cs.b[gate_idx][var_idx]);
+                c_y_coords.push(r1cs.c[gate_idx][var_idx]);
+            }
+
+            // call the interpolation function to generate the corresponding polynomials
+            a_polys.push(lagrange_interpolate(&x_coords, &a_y_coords));
+            b_polys.push(lagrange_interpolate(&x_coords, &b_y_coords));
+            c_polys.push(lagrange_interpolate(&x_coords, &c_y_coords));
+        }
+
+        QAP { a_polys, b_polys, c_polys }
+    }
 }
