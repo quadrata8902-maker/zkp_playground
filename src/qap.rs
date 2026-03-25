@@ -64,6 +64,8 @@ pub struct QAP {
     pub a_polys: Vec<Polynomial>,
     pub b_polys: Vec<Polynomial>,
     pub c_polys: Vec<Polynomial>,
+    /// Evaluation points `t_i` for each gate (used to build `Z(x)`).
+    pub t_coords: Vec<FieldElement>,
 }
 
 impl QAP {
@@ -103,6 +105,65 @@ impl QAP {
             c_polys.push(lagrange_interpolate(&x_coords, &c_y_coords));
         }
 
-        QAP { a_polys, b_polys, c_polys }
+        QAP {
+            a_polys,
+            b_polys,
+            c_polys,
+            t_coords: x_coords,
+        }
+    }
+
+    /// Compute A(x) = sum_j s_j * a_j(x) (and similarly for B(x), C(x)).
+    fn combine_with_witness(polys: &[Polynomial], s: &[FieldElement]) -> Polynomial {
+        if polys.len() != s.len() {
+            panic!("witness length does not match number of QAP polynomials");
+        }
+        let prime = polys[0].coeffs[0].prime;
+
+        let mut result = Polynomial::new(vec![FieldElement::new(0, prime)]);
+        for (j, poly_j) in polys.iter().enumerate() {
+            // Skip zero coefficients; common because many R1CS entries are 0.
+            if s[j].value == 0 {
+                continue;
+            }
+            let coef_poly = Polynomial::new(vec![s[j]]);
+            result = result + (poly_j.clone() * coef_poly);
+        }
+        result
+    }
+
+    fn is_zero_poly(p: &Polynomial) -> bool {
+        p.coeffs.iter().all(|c| c.value == 0)
+    }
+
+    /// Build Z(x) = Π_i (x - t_i) from the stored evaluation points.
+    fn build_z_poly(&self) -> Polynomial {
+        let prime = self.t_coords[0].prime;
+        let mut z = Polynomial::new(vec![FieldElement::new(1, prime)]);
+
+        for t in &self.t_coords {
+            // (x - t) = [-t, 1]
+            let term = Polynomial::new(vec![
+                FieldElement::new(0, prime) - *t,
+                FieldElement::new(1, prime),
+            ]);
+            z = z * term;
+        }
+        z
+    }
+
+    /// Verify the QAP condition:
+    ///   Z(x) | (A(x) * B(x) - C(x))
+    pub fn verify(&self, s: &[FieldElement]) -> bool {
+        let a_of_x = Self::combine_with_witness(&self.a_polys, s);
+        let b_of_x = Self::combine_with_witness(&self.b_polys, s);
+        let c_of_x = Self::combine_with_witness(&self.c_polys, s);
+
+        let ab = a_of_x.clone() * b_of_x.clone();
+        let w = ab - c_of_x;
+        let z = self.build_z_poly();
+
+        let (_q, r) = w.div_rem(&z);
+        Self::is_zero_poly(&r)
     }
 }
