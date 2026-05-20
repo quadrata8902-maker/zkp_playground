@@ -17,7 +17,7 @@ impl FieldElement{
     }
 
     pub fn print(&self){
-        println!("{} (mod{})", self.value, self.prime);
+        println!("{} (mod {})", self.value, self.prime);
     }
 
     pub fn pow(&self, exponent: u64) -> FieldElement {
@@ -85,5 +85,39 @@ impl Div for FieldElement {
     fn div(self, other: FieldElement) -> FieldElement {
         let other_inv = other.inv(); 
         self * other_inv 
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn demo_add() {
+        let a = FieldElement::new(7, 13);
+        let b = FieldElement::new(6, 13);
+        let c = a + b;
+        assert_eq!(c.value, 0);
+    }
+    #[test]
+    fn demo_sub() {
+        let a = FieldElement::new(7, 13);
+        let b = FieldElement::new(6, 13);
+        let c = a - b;
+        assert_eq!(c.value, 1);
+    }
+    #[test]
+    fn demo_mul() {
+        let a = FieldElement::new(7, 13);
+        let b = FieldElement::new(6, 13);
+        let c = a * b;
+        assert_eq!(c.value, 3);
+    }
+    #[test]
+    fn demo_div() {
+        let a = FieldElement::new(7, 13);
+        let b = FieldElement::new(6, 13);
+        let c = a / b;
+        assert_eq!(c.value, 12);
     }
 }

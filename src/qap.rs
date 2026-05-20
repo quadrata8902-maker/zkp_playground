@@ -114,7 +114,7 @@ impl QAP {
     }
 
     /// Compute A(x) = sum_j s_j * a_j(x) (and similarly for B(x), C(x)).
-    fn combine_with_witness(polys: &[Polynomial], s: &[FieldElement]) -> Polynomial {
+    pub fn combine_with_witness(polys: &[Polynomial], s: &[FieldElement]) -> Polynomial {
         if polys.len() != s.len() {
             panic!("witness length does not match number of QAP polynomials");
         }
