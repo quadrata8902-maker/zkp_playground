@@ -167,3 +167,115 @@ impl QAP {
         Self::is_zero_poly(&r)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::field::FieldElement;
+    use crate::poly::Polynomial;
+    use crate::r1cs::R1CS;
+    use crate::qap::{QAP, lagrange_interpolate};
+
+    // Use prime 149 (> the largest value 135 that appears) so witnesses stay natural.
+    const P: u64 = 149;
+    fn fe(v: u64) -> FieldElement { FieldElement::new(v, P) }
+    fn rows(d: &[[u64;6]]) -> Vec<Vec<FieldElement>> { d.iter().map(|r| r.iter().map(|&v| fe(v)).collect()).collect() }
+    fn sv(v: [u64;6]) -> Vec<FieldElement> { v.iter().map(|&x| fe(x)).collect() }
+
+    // Correct R1CS for f(x) = x^3 + x + 5 (C row 3 is the correct [0,0,0,0,0,1]).
+    fn r1cs() -> R1CS {
+        R1CS {
+            a: rows(&[[0,1,0,0,0,0],[0,0,0,1,0,0],[0,1,0,0,1,0],[5,0,0,0,0,1]]),
+            b: rows(&[[0,1,0,0,0,0],[0,1,0,0,0,0],[1,0,0,0,0,0],[1,0,0,0,0,0]]),
+            c: rows(&[[0,0,0,1,0,0],[0,0,0,0,1,0],[0,0,0,0,0,1],[0,0,1,0,0,0]]),
+        }
+    }
+
+    #[test]
+    fn lagrange_reproduces_given_points() {
+        // Interpolate y = x^2 at x = 1,2,3 over F_149, then check evaluation.
+        let xs = [fe(1), fe(2), fe(3)];
+        let ys = [fe(1), fe(4), fe(9)];
+        let p = lagrange_interpolate(&xs, &ys);
+        assert_eq!(p.evaluate(fe(1)), fe(1));
+        assert_eq!(p.evaluate(fe(2)), fe(4));
+        assert_eq!(p.evaluate(fe(3)), fe(9));
+        assert_eq!(p.evaluate(fe(4)), fe(16)); // x^2 extrapolates correctly
+        assert!(p.degree() <= 2);
+    }
+
+    #[test]
+    fn interpolated_polys_reproduce_the_matrix() {
+        // A_i(k) must equal the matrix entry A[k-1][i] at every gate point k.
+        let r = r1cs();
+        let qap = QAP::from_r1cs(&r);
+        let num_gates = r.a.len();
+        for var_idx in 0..6 {
+            for gate in 0..num_gates {
+                let k = qap.t_coords[gate];
+                assert_eq!(qap.a_polys[var_idx].evaluate(k), r.a[gate][var_idx]);
+                assert_eq!(qap.b_polys[var_idx].evaluate(k), r.b[gate][var_idx]);
+                assert_eq!(qap.c_polys[var_idx].evaluate(k), r.c[gate][var_idx]);
+            }
+        }
+    }
+
+    #[test]
+    fn columns_that_are_all_zero_interpolate_to_zero() {
+        // The "out" column (index 2) is all zeros in A and B.
+        let qap = QAP::from_r1cs(&r1cs());
+        assert!(qap.a_polys[2].is_zero());
+        assert!(qap.b_polys[2].is_zero());
+    }
+
+    #[test]
+    fn verify_accepts_valid_witness() {
+        // S(3) = [1, 3, 35, 9, 27, 30]
+        assert!(QAP::from_r1cs(&r1cs()).verify(&sv([1,3,35,9,27,30])));
+    }
+
+    #[test]
+    fn verify_rejects_tampered_witness() {
+        assert!(!QAP::from_r1cs(&r1cs()).verify(&sv([1,3,36,9,27,30]))); // wrong out
+        assert!(!QAP::from_r1cs(&r1cs()).verify(&sv([1,3,35,8,27,30]))); // wrong v1
+    }
+
+    #[test]
+    fn verify_accepts_consistent_trace_for_x5() {
+        // Like R1CS: QAP only checks circuit consistency, not that out == 35.
+        // S(5) = [1, 5, 135, 25, 125, 130] (out = f(5) = 135) is a valid trace.
+        assert!(QAP::from_r1cs(&r1cs()).verify(&sv([1,5,135,25,125,130])));
+    }
+
+    #[test]
+    fn qap_agrees_with_r1cs() {
+        // For the same witness, QAP.verify and R1CS.verify must agree.
+        let r = r1cs();
+        let qap = QAP::from_r1cs(&r);
+        let cases = [
+            [1,3,35,9,27,30], [1,5,135,25,125,130], // valid traces
+            [1,3,36,9,27,30], [1,7,35,2,11,4],       // invalid
+        ];
+        for w in cases {
+            assert_eq!(qap.verify(&sv(w)), r.verify(&sv(w).to_vec()), "mismatch on {:?}", w);
+        }
+    }
+
+    #[test]
+    fn target_divides_and_quotient_has_expected_degree() {
+        // For a valid witness: w = A*B - C is divisible by Z, and deg(H) <= 2.
+        // Also check the Euclidean identity Q*Z == w (remainder is 0).
+        let qap = QAP::from_r1cs(&r1cs());
+        let s = sv([1,3,35,9,27,30]);
+        let a = QAP::combine_with_witness(&qap.a_polys, &s);
+        let b = QAP::combine_with_witness(&qap.b_polys, &s);
+        let c = QAP::combine_with_witness(&qap.c_polys, &s);
+        let w = (a*b) - c;
+        let mut z = Polynomial::new(vec![fe(1)]);
+        for t in &qap.t_coords { z = z * Polynomial::new(vec![fe(0) - *t, fe(1)]); }
+        assert_eq!(z.degree(), 4);
+        let (q, r) = w.div_rem(&z);
+        assert!(r.is_zero());      // divisibility holds
+        assert!(q.degree() <= 2);  // deg(H) <= 6 - 4
+        assert_eq!(q * z, w);      // Q*Z reconstructs w exactly
+    }
+}

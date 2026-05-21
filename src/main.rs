@@ -1,3 +1,4 @@
+mod commit;
 mod curve;
 mod field;
 mod he;
